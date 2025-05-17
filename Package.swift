@@ -5,12 +5,12 @@ import PackageDescription
 let package = Package(
 	name: "OpenAIRealtime",
 	platforms: [
-		.iOS(.v17),
-		.tvOS(.v17),
-		.macOS(.v14),
-		.watchOS(.v10),
+		.iOS(.v16),
+		.tvOS(.v16),
+		.macOS(.v13),
+		.watchOS(.v9),
 		.visionOS(.v1),
-		.macCatalyst(.v17),
+		.macCatalyst(.v16),
 	],
 	products: [
 		.library(name: "OpenAIRealtime", type: .static, targets: ["OpenAIRealtime"]),

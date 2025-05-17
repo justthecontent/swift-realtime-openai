@@ -1,13 +1,21 @@
 import Foundation
 @preconcurrency import AVFoundation
+#if canImport(Observation)
+import Observation
+#endif
 
 public enum ConversationError: Error {
 	case sessionNotFound
 	case converterInitializationFailed
 }
 
+#if swift(>=5.9)
+@available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *)
 @Observable
 public final class Conversation: @unchecked Sendable {
+#else
+public final class Conversation: @unchecked Sendable {
+#endif
 	private let client: RealtimeAPI
 	@MainActor private var isInterrupting: Bool = false
 	private let errorStream: AsyncStream<ServerError>.Continuation
@@ -498,14 +506,40 @@ extension Conversation {
 	/// This is because updating the `queuedSamples` array on a background thread will trigger a re-render of any views that depend on it on that thread.
 	/// So, instead, we observe the property and update `isPlaying` on the main actor.
 	private func _keepIsPlayingPropertyUpdated() {
-		withObservationTracking { _ = queuedSamples.isEmpty } onChange: { [weak self] in
-			Task { @MainActor in
-				guard let self else { return }
+		#if swift(>=5.9) && canImport(Observation)
+		if #available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *) {
+			withObservationTracking { _ = queuedSamples.isEmpty } onChange: { [weak self] in
+				Task { @MainActor in
+					guard let self else { return }
 
-				self.isPlaying = self.queuedSamples.isEmpty
+					self.isPlaying = self.queuedSamples.isEmpty
+				}
+
+				self?._keepIsPlayingPropertyUpdated()
 			}
-
-			self?._keepIsPlayingPropertyUpdated()
+		} else {
+			_fallbackKeepIsPlayingPropertyUpdated()
+		}
+		#else
+		_fallbackKeepIsPlayingPropertyUpdated()
+		#endif
+	}
+	
+	private func _fallbackKeepIsPlayingPropertyUpdated() {
+		// For iOS 16, we'll use a timer-based approach to check the queue status
+		Task.detached { [weak self] in
+			while true {
+				guard let self = self else { break }
+				
+				let isEmpty = self.queuedSamples.isEmpty
+				
+				Task { @MainActor in
+					guard let self = self else { return }
+					self.isPlaying = isEmpty
+				}
+				
+				try? await Task.sleep(for: .milliseconds(100))
+			}
 		}
 	}
 }
