@@ -1,12 +1,18 @@
 import Foundation
 @preconcurrency import AVFoundation
+#if canImport(Observation)
+import Observation
+#endif
 
 public enum ConversationError: Error {
 	case sessionNotFound
 	case converterInitializationFailed
 }
 
+@available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *)
+#if canImport(Observation)
 @Observable
+#endif
 public final class Conversation: @unchecked Sendable {
 	private let client: RealtimeAPI
 	@MainActor private var isInterrupting: Bool = false
@@ -176,6 +182,7 @@ public final class Conversation: @unchecked Sendable {
 }
 
 /// Listening/Speaking public API
+@available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *)
 public extension Conversation {
 	/// Start listening to the user's microphone and sending audio data to the model.
 	/// This will automatically call `startHandlingVoice` if it hasn't been called yet.
@@ -297,6 +304,7 @@ public extension Conversation {
 }
 
 /// Event handling private API
+@available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *)
 private extension Conversation {
 	@MainActor func handleEvent(_ event: ServerEvent) {
 		switch event {
@@ -406,6 +414,7 @@ private extension Conversation {
 }
 
 /// Audio processing private API
+@available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *)
 private extension Conversation {
 	private func queueAudioSample(_ event: ServerEvent.ResponseAudioDeltaEvent) {
 		guard let buffer = AVAudioPCMBuffer.fromData(event.delta, format: desiredFormat) else {
@@ -493,11 +502,13 @@ private extension Conversation {
 }
 
 // Other private methods
+@available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *)
 extension Conversation {
 	/// This hack is required because relying on `queuedSamples.isEmpty` directly crashes the app.
 	/// This is because updating the `queuedSamples` array on a background thread will trigger a re-render of any views that depend on it on that thread.
 	/// So, instead, we observe the property and update `isPlaying` on the main actor.
 	private func _keepIsPlayingPropertyUpdated() {
+		#if canImport(Observation)
 		withObservationTracking { _ = queuedSamples.isEmpty } onChange: { [weak self] in
 			Task { @MainActor in
 				guard let self else { return }
@@ -507,5 +518,6 @@ extension Conversation {
 
 			self?._keepIsPlayingPropertyUpdated()
 		}
+		#endif
 	}
 }
